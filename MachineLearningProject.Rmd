@@ -1,0 +1,104 @@
+---
+title: "MachineLearningProject"
+output: html_document
+---
+
+# Practical Machine Learning Project
+
+## Data
+### Load the training and testing data sets
+```{r}
+train <- read.csv( "/Users/golinger/DataScience/Machine Learning/Project/pml-training.csv" )
+test <- read.csv( "/Users/golinger/DataScience/Machine Learning/Project/pml-testing.csv" )
+```
+### Look at the train data
+```{r}
+dim( train )
+table( train$classe )
+```
+### Look at the test data
+```{r}
+dim( test )
+table( test$classe )
+```
+
+# Preprocessing
+## Partitioning
+### Create a validation set
+```{r}
+library(caret)
+set.seed(22222)
+trainIx <- createDataPartition( train$classe, p = 0.8, list = FALSE )
+Training <- train[ trainIx, ]
+Validation <- train[ -trainIx, ]
+```
+
+## Feature Selection
+### Remove near zero variance features
+```{r}
+nzvcol <- nearZeroVar( Training )
+Training <- Training[ , -nzvcol ]
+```
+
+### Remove features with a lot of missing values
+```{r}
+cntLength <- sapply( Training, function(x) 
+  {
+  sum( !(is.na(x) | x == "" ))
+  })
+nullCol <- names( cntLength[cntLength < 0.4 * length( Training$classe )] )
+```
+
+### Remove features that are just descriptive
+```{r}
+descriptCol <- c( "X", "user_name", "raw_timestamp_part_1", "raw_timestamp_part_2", 
+                 "cvtd_timestamp", "new_window", "num_window" )
+excludeCols <- c( descriptCol, nullCol )
+Training <- Training[, !names( Training ) %in% excludeCols]
+```
+
+# Model
+## Model Training
+```{r}
+library( randomForest )
+rfModel <- randomForest( classe ~ ., data = Training, importance = TRUE, ntrees = 10 )
+```
+## Model Validation
+## Train Set Accuracy
+```{r}
+ptraining <- predict( rfModel, Training )
+print( confusionMatrix( ptraining, Training$classe ))
+```
+
+## Validation set Accuracy
+### This set is used to cross validate the model.
+```{r}
+pvalidation <- predict( rfModel, Validation )
+print( confusionMatrix( pvalidation, Validation$classe ))
+```
+### The out of sample error is very small and well within any over fitting concerns.
+
+# Test Set Prediction
+```{r}
+ptest <- predict( rfModel, test )
+print( ptest )
+```
+
+## Test Set Files
+```{r}
+testSet <- as.vector( ptest )
+
+writeTestFiles = function( x ) 
+  {
+  n = length(x)
+  for ( i in 1:n ) 
+    {
+    filename = paste0( "problem_id_", i, ".txt" )
+    write.table( x[i], file = filename, quote = FALSE, row.names = FALSE, 
+                col.names = FALSE )
+    }
+  }
+
+writeTestFiles( testSet )
+```
+
